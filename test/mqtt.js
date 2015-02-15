@@ -12,7 +12,7 @@ var should = require('should')
  */
 
 var mqtt = require('../');
-
+/*
 describe('mqtt', function() {
 
   describe('#connect', function () {
@@ -249,3 +249,4 @@ describe('mqtt', function() {
     });
   });
 });
+*/

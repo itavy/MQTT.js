@@ -18,6 +18,7 @@ var port = 9876;
 /**
  * Test server
  */
+ /*
 function buildServer() {
   return new mqtt.Server(function (client) {
 
@@ -167,3 +168,4 @@ describe('MqttClient', function() {
     });
   });
 });
+*/

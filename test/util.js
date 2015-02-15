@@ -1,4 +1,4 @@
-
+/*
 var through = require('through2')
   , setImmediate = global.setImmediate || function(callback) {
       setTimeout(callback, 0);
@@ -13,3 +13,4 @@ module.exports.testStream = function() {
     });
   });
 };
+*/

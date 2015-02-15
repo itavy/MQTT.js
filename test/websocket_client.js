@@ -22,6 +22,7 @@ var port = 9999;
 /**
  * Test server
  */
+/*
 var server = http.createServer()
 
 function attachWebsocketServer(server) {
@@ -98,3 +99,4 @@ describe('Websocket Client', function () {
   var config = { protocol: 'ws', port: port };
   abstractClientTests(server, config);
 });
+*/

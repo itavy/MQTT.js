@@ -2,7 +2,9 @@
 /**
  * Testing dependencies
  */
-var should        = require('should')
+
+module.exports = function(server, config) {
+  var should        = require('should')
   , sinon         = require('sinon')
   , mqtt          = require('../')
   , MqttClient    = require('../lib/client')
@@ -10,8 +12,6 @@ var should        = require('should')
       // for node v0.8 support
       process.nextTick(callback);
     };
-
-module.exports = function(server, config) {
   function connect(opts) {
     opts = Object.keys(config).reduce(function(acc, key) {
       acc[key] = config[key];
