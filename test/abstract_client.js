@@ -4,7 +4,6 @@
   var abstractClientWrapper,
     should        = require('should'),
     sinon         = require('sinon'),
-//    u             = require('util'),
     setImmediate  = global.setImmediate || function (callback) {
       // for node v0.8 support
       process.nextTick(callback);
@@ -12,7 +11,6 @@
   abstractClientWrapper = (function () {
     var abstractClientTests,
       mqtt          = require('../');
-      //MqttClient    = require('../lib/client');
 
     /**
      * Testing dependencies

@@ -1,8 +1,8 @@
-/**
- * Testing includes
- */
 (function () {
   'use strict';
+  /**
+   * Testing includes
+   */
   var mqtt = require('../'),
     //should = require('should'),
     fs = require('fs'),

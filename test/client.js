@@ -1,8 +1,8 @@
-/**
- * Testing dependencies
- */
 (function () {
   'use strict';
+  /**
+   * Testing dependencies
+   */
   var buildServerClient, serverClient, port,
     mqtt = require('..'),
     should = require('should'),
