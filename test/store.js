@@ -4,8 +4,6 @@
    * Testing requires
    */
 
-  /*var mqtt = require('../'),
-    should = require('should'),*/
   var Store = require('../lib/store');
 
   /**
