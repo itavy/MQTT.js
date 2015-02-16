@@ -87,7 +87,7 @@
   }).listen(port);
 
   describe('MqttSecureClient', function () {
-    var config = { protocol: 'mqtts', port: port, rejectUnauthorized: false };
+    var config = { protocol: 'mqtts', port: port, rejectUnauthorized: false, mochaId:'secure mqttclient' };
     abstractClientTestsSC(secureServer, config);
 
     describe('with secure parameters', function () {

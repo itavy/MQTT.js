@@ -95,8 +95,8 @@
     });
   }).listen(port);
 
-  describe('Websocket Client', function () {
-    var config = { protocol: 'ws', port: port };
+  describe('WebsocketTests Client', function () {
+    var config = { protocol: 'ws', port: port, mochaId:'websocketClient' };
     wsAbstractClientTests(wsServer, config);
   });
 }());

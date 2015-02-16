@@ -99,8 +99,10 @@
       });
     });
 
-    var config = { protocol: 'mqtt', port: port };
-    abstractClientTests(serverClient, config);
+    var config = { protocol: 'mqtt', port: port, mochaId:'mqttclient' };
+    describe('MQTTCLIENT abstract tests', function () {
+      abstractClientTests(serverClient, config);
+    });
 
     describe('message ids', function () {
       it('should increment the message id', function () {

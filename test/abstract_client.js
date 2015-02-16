@@ -16,12 +16,18 @@
      * Testing dependencies
      */
     abstractClientTests = function (server, config) {
-      var connect;
+      var tTopic = 'testTopic',
+        tMessage = 'testMessage',
+        connect;
       connect = function (opts) {
         opts = Object.keys(config).reduce(function (acc, key) {
           acc[key] = config[key];
           return acc;
         }, opts || {});
+
+        if (!opts.mochaId) {
+          opts.mochaId = config.mochaId;
+        }
 
         return mqtt.connect(opts);
       };
@@ -100,26 +106,25 @@
 
         it('should connect to the broker', function (done) {
           var client = connect();
-          client.on('connect', function () {
-            return undefined;
-          });
 
-          server.once('client', function (client) {
-            client.disconnect();
+          client.once('connect', function () {
+            client.end();
             done();
           });
         });
 
         it('should send a default client id', function (done) {
           var client = connect();
-          client.on('connect', function () {
-            return undefined;
-          });
+          /*
+            check if default client id is set ok on client and then
+            compare with the one from the packet
+          */
+          client.options.clientId.should.match(/mqttjs.*/);
 
-          server.once('client', function (client) {
-            client.once('connect', function (packet) {
-              packet.clientId.should.match(/mqttjs.*/);
-              client.disconnect();
+          server.once('client', function (serverClient) {
+            serverClient.once('connect', function (packet) {
+              packet.clientId.should.match(client.options.clientId);
+              serverClient.disconnect();
               done();
             });
           });
@@ -127,14 +132,16 @@
 
         it('should send be clean by default', function (done) {
           var client = connect();
-          client.on('connect', function () {
-            return undefined;
-          });
+          /*
+            check if clean is set on client and then
+            check if it was sent to server
+          */
+          client.options.clean.should.be.true;
 
-          server.once('client', function (client) {
-            client.once('connect', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('connect', function (packet) {
               packet.clean.should.be.true;
-              client.disconnect();
+              serverClient.disconnect();
               done();
             });
           });
@@ -142,14 +149,16 @@
 
         it('should connect with the given client id', function (done) {
           var client = connect({clientId: 'testclient'});
-          client.on('connect', function () {
-            return undefined;
-          });
+          /*
+            check if clientId is set on client and then
+            check if it was sent to server
+          */
+          client.options.clientId.should.be.equal('testclient');
 
-          server.once('client', function (client) {
-            client.once('connect', function (packet) {
-              packet.clientId.should.match(/testclient/);
-              client.disconnect();
+          server.once('client', function (serverClient) {
+            serverClient.once('connect', function (packet) {
+              packet.clientId.should.be.equal('testclient');
+              serverClient.disconnect();
               done();
             });
           });
@@ -157,42 +166,70 @@
 
         it('should connect with the client id and unclean state', function (done) {
           var client = connect({clientId: 'testclient', clean: false});
-          client.on('connect', function () {
-            return undefined;
-          });
 
-          server.once('client', function (client) {
-            client.once('connect', function (packet) {
-              packet.clientId.should.match(/testclient/);
+          /*
+            check if clientId and clean are set on client and then
+            check if they are sent to server
+          */
+          client.options.clientId.should.be.equal('testclient');
+          client.options.clean.should.be.false;
+
+          server.once('client', function (serverClient) {
+            serverClient.once('connect', function (packet) {
+              packet.clientId.should.be.equal('testclient');
               packet.clean.should.be.false;
-              client.disconnect();
+              serverClient.disconnect();
               done();
             });
           });
         });
 
         it('should require a clientId with clean=false', function (done) {
-          try {
+          var fCleanFalse;
+          fCleanFalse = function () {
             var client = connect({ clean: false });
             client.on('connect', function () {
-              return undefined;
+              //dummy function
             });
-            done(new Error('should have thrown'));
-          } catch (err) {
-            done();
-          }
+          };
+          should(fCleanFalse).throw('Missing clientId for unclean clients');
+          /*(function () {
+            var client = connect({ clean: false });
+            client.on('connect', function () {
+              //dummy function
+            });
+          }).should.throw('Missing clientId for unclean clients2');*/
+          done();
         });
 
         it('should default to localhost', function (done) {
           var client = connect({clientId: 'testclient'});
-          client.on('connect', function () {
-            return undefined;
-          });
 
-          server.once('client', function (client) {
-            client.once('connect', function (packet) {
-              packet.clientId.should.match(/testclient/);
-              client.disconnect();
+          /*
+            the check shall be made on client side
+            and on server side call disconnect
+            to be sure that it connected to localhost indeed
+          */
+          //console.log(client);
+          // it seems that are different fields for mqtt and mqtts
+          // in ws it seems it is not set so no check
+          // TODO to be investigated
+          switch (config.protocol) {
+            case 'mqtts':
+              client.options.host.should.be.equal('localhost');
+              break;
+            case 'mqtt':
+              client.options.hostname.should.be.equal('localhost');
+              break;
+            default:
+              //do nothing
+              break;
+          }
+
+          server.once('client', function (serverClient) {
+            serverClient.once('connect', function (packet) {
+              packet.clientId.should.be.equal('testclient');
+              serverClient.disconnect();
               done();
             });
           });
@@ -204,27 +241,27 @@
             client.end();
             done();
           });
-          client.once('error', done);
+          // if there is an error at connecting, this shall not pass
+          //client.once('error', done);
         });
 
         it('should mark the client as connected', function (done) {
           var client = connect();
           client.once('connect', function () {
-            if (client.connected) {
-              done();
-            } else {
-              done(new Error('Not marked as connected'));
-            }
+            client.connected.should.be.true;
             client.end();
+            done();
           });
         });
 
         it('should emit error', function (done) {
+          // check what error is throwing
           var client = connect({clientId: 'invalid'});
           client.once('connect', function () {
-            done(new Error('Should not emit connect'));
+            throw new Error('invalid error');
           });
-          client.once('error', function (/*error*/) {
+          client.once('error', function (error) {
+            error.message.should.equal('Connection refused: Identifier rejected');
             client.end();
             done();
           });
@@ -251,6 +288,7 @@
 
           client.once('connect', function () {
             client.queue.length.should.equal(0);
+            client.end();
             done();
           });
         });
@@ -265,9 +303,9 @@
 
             client.on('queueEmpty', client.end.bind(client));
 
-            server.once('client', function (client) {
-              client.on('subscribe', function () {
-                client.on('publish', function (/*packet*/) {
+            server.once('client', function (serverClient) {
+              serverClient.on('subscribe', function () {
+                serverClient.on('publish', function (/*packet*/) {
                   done();
                 });
               });
@@ -277,31 +315,37 @@
           it('should delay closing everything up until the queue is depleted', function (done) {
             var client = connect();
 
-            client.subscribe('test');
-            client.publish('test', 'test');
-            client.end();
-
-            client.once('message', function () {
-              done();
-            });
-
-            server.once('client', function (client) {
-              client.on('subscribe', function () {
-                client.on('publish', function (packet) {
-                  client.publish(packet);
+            server.once('client', function (serverClient) {
+              serverClient.on('subscribe', function () {
+                serverClient.on('publish', function (packet) {
+                  serverClient.publish(packet);
                 });
               });
             });
+
+            client.once('message', function (t, m/*, packet*/) {
+              /*
+                check if it is correct message on the right topic
+                future test TODO check for buffer and string message
+              */
+              t.should.be.equal(tTopic);
+              m.toString().should.be.equal(tMessage);
+              done();
+            });
+
+            client.subscribe(tTopic);
+            client.publish(tTopic, tMessage);
+            client.end();
           });
 
           it('should delay ending up until all inflight messages are delivered', function (done) {
             var client = connect();
 
             client.on('connect', function () {
-              client.subscribe('test', function () {
+              client.subscribe(tTopic, function () {
                 done();
               });
-              client.publish('test', 'test', function () {
+              client.publish(tTopic, tMessage, function () {
                 client.end();
               });
             });
@@ -311,11 +355,13 @@
             var client = connect();
 
             client.on('connect', function () {
-              client.subscribe('testsub');
-              client.publish('testsub', 'testmsg', { qos: 1 }, function () {
+              client.subscribe(tTopic);
+              client.publish(tTopic, tMessage, { qos: 1 }, function () {
                 client.end();
               });
-              client.on('message', function (/*t,*/ /*p,*/ /*packet*/) {
+              client.on('message', function (t, m/*, packet*/) {
+                t.should.be.equal(tTopic);
+                m.toString().should.be.equal(tMessage);
                 done();
               });
             });
@@ -333,38 +379,36 @@
 
       describe('publishing', function () {
         it('should publish a message (offline)', function (done) {
-          var client = connect(),
-            payload = 'test',
-            topic = 'test';
+          var client = connect();
 
-          client.publish(topic, payload);
+          client.publish(tTopic, tMessage);
 
-          server.once('client', function (client) {
-            client.once('publish', function (packet) {
-              packet.topic.should.equal(topic);
-              packet.payload.toString().should.equal(payload);
+          server.once('client', function (serverClient) {
+            serverClient.once('publish', function (packet) {
+              packet.topic.should.equal(tTopic);
+              packet.payload.toString().should.equal(tMessage);
               packet.qos.should.equal(0);
               packet.retain.should.equal(false);
+              serverClient.disconnect();
               done();
             });
           });
         });
 
         it('should publish a message (online)', function (done) {
-          var client = connect(),
-            payload = 'test',
-            topic = 'test';
+          var client = connect();
 
           client.on('connect', function () {
-            client.publish(topic, payload);
+            client.publish(tTopic, tMessage);
           });
 
-          server.once('client', function (client) {
-            client.once('publish', function (packet) {
-              packet.topic.should.equal(topic);
-              packet.payload.toString().should.equal(payload);
+          server.once('client', function (serverClient) {
+            serverClient.once('publish', function (packet) {
+              packet.topic.should.equal(tTopic);
+              packet.payload.toString().should.equal(tMessage);
               packet.qos.should.equal(0);
               packet.retain.should.equal(false);
+              serverClient.disconnect();
               done();
             });
           });
@@ -372,23 +416,22 @@
 
         it('should accept options', function (done) {
           var client = connect(),
-            payload = 'test',
-            topic = 'test',
             opts = {
               retain: true,
               qos: 1
             };
 
           client.once('connect', function () {
-            client.publish(topic, payload, opts);
+            client.publish(tTopic, tMessage, opts);
           });
 
-          server.once('client', function (client) {
-            client.once('publish', function (packet) {
-              packet.topic.should.equal(topic);
-              packet.payload.toString().should.equal(payload);
+          server.once('client', function (serverClient) {
+            serverClient.once('publish', function (packet) {
+              packet.topic.should.equal(tTopic);
+              packet.payload.toString().should.equal(tMessage);
               packet.qos.should.equal(opts.qos, 'incorrect qos');
               packet.retain.should.equal(opts.retain, 'incorrect ret');
+              serverClient.disconnect();
               done();
             });
           });
@@ -398,7 +441,10 @@
           var client = connect();
 
           client.once('connect', function () {
-            client.publish('a', 'b', done);
+            client.publish('a', 'b', function () {
+              client.end();
+              done();
+            });
           });
         });
 
@@ -407,7 +453,10 @@
             opts = {qos: 1};
 
           client.once('connect', function () {
-            client.publish('a', 'b', opts, done);
+            client.publish('a', 'b', opts, function () {
+              client.end();
+              done();
+            });
           });
         });
 
@@ -416,7 +465,10 @@
             opts = {qos: 2};
 
           client.once('connect', function () {
-            client.publish('a', 'b', opts, done);
+            client.publish('a', 'b', opts, function () {
+              client.end();
+              done();
+            });
           });
         });
 
@@ -424,7 +476,10 @@
           var client = connect();
 
           client.once('connect', function () {
-            client.publish('中国', 'hello', done);
+            client.publish('中国', 'hello', function () {
+              client.end();
+              done();
+            });
           });
         });
 
@@ -432,7 +487,10 @@
           var client = connect();
 
           client.once('connect', function () {
-            client.publish('hello', '中国', done);
+            client.publish('hello', '中国', function () {
+              client.end();
+              done();
+            });
           });
         });
       });
@@ -441,27 +499,28 @@
         it('should send an unsubscribe packet (offline)', function (done) {
           var client = connect();
 
-          client.unsubscribe('test');
+          client.unsubscribe(tTopic);
 
-          server.once('client', function (client) {
-            client.once('unsubscribe', function (packet) {
-              packet.unsubscriptions.should.containEql('test');
+          server.once('client', function (serverClient) {
+            serverClient.once('unsubscribe', function (packet) {
+              packet.unsubscriptions.should.containEql(tTopic);
+              serverClient.disconnect();
               done();
             });
           });
         });
 
         it('should send an unsubscribe packet', function (done) {
-          var client = connect(),
-            topic = 'topic';
+          var client = connect();
 
           client.once('connect', function () {
-            client.unsubscribe(topic);
+            client.unsubscribe(tTopic);
           });
 
-          server.once('client', function (client) {
-            client.once('unsubscribe', function (packet) {
-              packet.unsubscriptions.should.containEql(topic);
+          server.once('client', function (serverClient) {
+            serverClient.once('unsubscribe', function (packet) {
+              packet.unsubscriptions.should.containEql(tTopic);
+              serverClient.disconnect();
               done();
             });
           });
@@ -475,25 +534,28 @@
             client.unsubscribe(topics);
           });
 
-          server.once('client', function (client) {
-            client.once('unsubscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('unsubscribe', function (packet) {
               packet.unsubscriptions.should.eql(topics);
+              serverClient.disconnect();
               done();
             });
           });
         });
 
         it('should fire a callback on unsuback', function (done) {
-          var client = connect(),
-            topic = 'topic';
+          var client = connect();
 
           client.once('connect', function () {
-            client.unsubscribe(topic, done);
+            client.unsubscribe(tTopic, function () {
+              client.end();
+              done();
+            });
           });
 
-          server.once('client', function (client) {
-            client.once('unsubscribe', function (packet) {
-              client.unsuback(packet);
+          server.once('client', function (serverClient) {
+            serverClient.once('unsubscribe', function (packet) {
+              serverClient.unsuback(packet);
             });
           });
         });
@@ -506,9 +568,10 @@
             client.unsubscribe(topic);
           });
 
-          server.once('client', function (client) {
-            client.once('unsubscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('unsubscribe', function (packet) {
               packet.unsubscriptions.should.containEql(topic);
+              serverClient.disconnect();
               done();
             });
           });
@@ -581,11 +644,18 @@
           });
         });
         it('should not reconnect if pingresp is successful', function (done) {
-          var client = connect({keepalive:100});
+          var notClosedByEndTest = true,
+            client = connect({keepalive:100});
           client.once('close', function () {
-            done(new Error('Client closed connection'));
+            if (notClosedByEndTest) {
+              done(new Error('Client closed connection'));
+            }
           });
-          setTimeout(done, 1000);
+          setTimeout(function () {
+            notClosedByEndTest = false;
+            client.end();
+            done();
+          }, 1000);
         });
       });
 
@@ -593,29 +663,36 @@
         it('should send a subscribe message (offline)', function (done) {
           var client = connect();
 
-          client.subscribe('test');
+          client.subscribe(tTopic);
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (/*packet*/) {
-              done();
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
+              if (packet.subscriptions[0]){
+                packet.subscriptions[0].should.eql({
+                  topic: tTopic,
+                  qos:0
+                });
+                serverClient.disconnect();
+                done();
+              }
             });
           });
         });
 
         it('should send a subscribe message', function (done) {
-          var client = connect(),
-            topic = 'test';
+          var client = connect();
 
           client.once('connect', function () {
-            client.subscribe(topic);
+            client.subscribe(tTopic);
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
               packet.subscriptions.should.containEql({
-                topic: topic,
+                topic: tTopic,
                 qos: 0
               });
+              serverClient.disconnect();
               done();
             });
           });
@@ -629,14 +706,15 @@
             client.subscribe(subs);
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
               // i.e. [{topic: 'a', qos: 0}, {topic: 'b', qos: 0}]
               var expected = subs.map(function (i) {
                 return {topic: i, qos: 0};
               });
 
               packet.subscriptions.should.eql(expected);
+              serverClient.disconnect();
               done();
             });
           });
@@ -650,8 +728,8 @@
             client.subscribe(topics);
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
               var k,
                 expected = [];
 
@@ -665,6 +743,7 @@
               }
 
               packet.subscriptions.should.eql(expected);
+              serverClient.disconnect();
               done();
             });
           });
@@ -672,32 +751,32 @@
 
         it('should accept an options parameter', function (done) {
           var client = connect(),
-            topic = 'test',
             opts = {qos: 1};
           client.once('connect', function (/*args*/) {
-            client.subscribe(topic, opts);
+            client.subscribe(tTopic, opts);
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (packet) {
-              var expected = [{topic: topic, qos: 1}];
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
+              var expected = [{topic: tTopic, qos: 1}];
 
               packet.subscriptions.should.eql(expected);
+              serverClient.disconnect();
               done();
             });
           });
         });
 
         it('should fire a callback on suback', function (done) {
-          var client = connect(),
-            topic = 'test';
+          var client = connect();
           client.once('connect', function (/*args*/) {
-            client.subscribe(topic, {qos:2}, function (err, granted) {
+            client.subscribe(tTopic, {qos:2}, function (err, granted) {
               if (err) {
                 done(err);
               } else {
                 should.exist(granted, 'granted not given');
-                granted.should.containEql({topic: 'test', qos: 2});
+                granted.should.containEql({topic: tTopic, qos: 2});
+                client.end();
                 done();
               }
             });
@@ -712,12 +791,13 @@
             client.subscribe(topic);
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (packet) {
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (packet) {
               packet.subscriptions.should.containEql({
                 topic: topic,
                 qos: 0
               });
+              serverClient.disconnect();
               done();
             });
           });
@@ -741,12 +821,13 @@
             topic.should.equal(testPacket.topic);
             message.toString().should.equal(testPacket.payload);
             packet.should.equal(packet);
+            client.end();
             done();
           });
 
-          server.once('client', function (client) {
-            client.on('subscribe', function (/*packet*/) {
-              client.publish(testPacket);
+          server.once('client', function (serverClient) {
+            serverClient.on('subscribe', function (/*packet*/) {
+              serverClient.publish(testPacket);
             });
           });
         });
@@ -762,18 +843,18 @@
             };
 
           client.subscribe(testPacket.topic);
-          client.once('message',
-              function (topic, message, packet) {
+          client.once('message', function (topic, message, packet) {
             topic.should.equal(testPacket.topic);
             message.should.be.an.instanceOf(Buffer);
             message.toString().should.equal(testPacket.payload);
             packet.should.equal(packet);
+            client.end();
             done();
           });
 
-          server.once('client', function (client) {
-            client.on('subscribe', function (/*packet*/) {
-              client.publish(testPacket);
+          server.once('client', function (serverClient) {
+            serverClient.on('subscribe', function (/*packet*/) {
+              serverClient.publish(testPacket);
             });
           });
         });
@@ -791,17 +872,17 @@
           server.testPublish = testPacket;
 
           client.subscribe(testPacket.topic);
-          client.once('message',
-              function (topic, message, packet) {
+          client.once('message', function (topic, message, packet) {
             topic.should.equal(testPacket.topic);
             message.toString().should.equal(testPacket.payload);
             packet.should.equal(packet);
+            client.end();
             done();
           });
 
-          server.once('client', function (client) {
-            client.on('subscribe', function (/*packet*/) {
-              client.publish(testPacket);
+          server.once('client', function (serverClient) {
+            serverClient.on('subscribe', function (/*packet*/) {
+              serverClient.publish(testPacket);
             });
           });
         });
@@ -819,19 +900,19 @@
           server.testPublish = testPacket;
 
           client.subscribe(testPacket.topic);
-          client.on('message',
-              function (topic, message, packet) {
+          client.on('message', function (topic, message, packet) {
             topic.should.equal(testPacket.topic);
             message.toString().should.equal(testPacket.payload);
             packet.should.equal(packet);
+            client.end();
             done();
           });
 
-          server.once('client', function (client) {
-            client.on('subscribe', function (/*packet*/) {
-              client.publish(testPacket);
+          server.once('client', function (serverClient) {
+            serverClient.on('subscribe', function (/*packet*/) {
+              serverClient.publish(testPacket);
               // twice, should be ignored
-              client.publish(testPacket);
+              serverClient.publish(testPacket);
             });
           });
         });
@@ -847,18 +928,18 @@
             };
 
           client.subscribe(testPacket.topic);
-          client.once('message',
-            function (topic, message, packet) {
+          client.once('message', function (topic, message, packet) {
               topic.should.equal(testPacket.topic);
               message.should.be.an.instanceOf(Buffer);
               message.toString().should.equal(testPacket.payload);
               packet.should.equal(packet);
+              client.end();
               done();
             });
 
-          server.once('client', function (client) {
-            client.on('subscribe', function (/*packet*/) {
-              client.publish(testPacket);
+          server.once('client', function (serverClient) {
+            serverClient.on('subscribe', function (/*packet*/) {
+              serverClient.publish(testPacket);
             });
           });
         });
@@ -867,48 +948,60 @@
       describe('qos handling', function () {
 
         it('should follow qos 0 semantics (trivial)', function (done) {
-          var client = connect(),
-            test_topic = 'test',
-            test_message = 'message';
+          var client = connect();
 
           client.once('connect', function () {
-            client.subscribe(test_topic, {qos: 0});
+            client.subscribe(tTopic, {qos: 0});
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (/*packet*/) {
-              client.publish({
-                topic: test_topic,
-                payload: test_message,
+          client.on('message', function (t, m, packet) {
+            t.should.be.equal(tTopic);
+            m.toString().should.be.equal(tMessage);
+            packet.qos.should.be.equal(0);
+            client.end();
+            done();
+          });
+
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (/*packet*/) {
+              serverClient.publish({
+                topic: tTopic,
+                payload: tMessage,
                 qos: 0,
                 retain: false
               });
-              done();
             });
           });
         });
 
         it('should follow qos 1 semantics', function (done) {
           var client = connect(),
-            test_topic = 'test',
-            test_message = 'message',
             mid = 50;
+
           client.once('connect', function (/*args*/) {
-            client.subscribe(test_topic, {qos: 1});
+            client.subscribe(tTopic, {qos: 1});
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (/*packet*/) {
-              client.publish({
-                topic: test_topic,
-                payload: test_message,
+          client.on('message', function (t, m, packet) {
+            t.should.be.equal(tTopic);
+            m.toString().should.be.equal(tMessage);
+            packet.qos.should.be.equal(1);
+            packet.messageId.should.be.equal(mid);
+          });
+
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (/*packet*/) {
+              serverClient.publish({
+                topic: tTopic,
+                payload: tMessage,
                 messageId: mid,
                 qos: 1
               });
             });
 
-            client.once('puback', function (packet) {
+            serverClient.once('puback', function (packet) {
               packet.messageId.should.equal(mid);
+              serverClient.disconnect();
               done();
             });
           });
@@ -916,24 +1009,31 @@
 
         it('should follow qos 2 semantics', function (done) {
           var client = connect(),
-            test_topic = 'test',
-            test_message = 'message',
             mid = 253;
 
           client.once('connect', function () {
-            client.subscribe(test_topic, {qos: 2});
+            client.subscribe(tTopic, {qos: 2});
           });
 
-          server.once('client', function (client) {
-            client.once('subscribe', function (/*packet*/) {
-              client.publish({
-                topic: test_topic,
-                payload: test_message,
+          client.on('message', function (t, m, packet) {
+            t.should.be.equal(tTopic);
+            m.toString().should.be.equal(tMessage);
+            packet.qos.should.be.equal(2);
+            packet.messageId.should.be.equal(mid);
+          });
+
+          server.once('client', function (serverClient) {
+            serverClient.once('subscribe', function (/*packet*/) {
+              serverClient.publish({
+                topic: tTopic,
+                payload: tMessage,
                 qos: 2,
                 messageId: mid
               });
             });
-            client.once('pubcomp', function (/*packet*/) {
+            serverClient.once('pubcomp', function (packet) {
+              packet.messageId.should.equal(mid);
+              serverClient.disconnect();
               done();
             });
           });
@@ -954,9 +1054,11 @@
 
           client.on('connect', function () {
             if (tryReconnect) {
-              client.stream.end();
               tryReconnect = false;
+              client.stream.end();
             } else {
+              //extra close to cleanup the client
+              client.end();
               done();
             }
           });
@@ -973,10 +1075,12 @@
 
           client.on('connect', function () {
             if (tryReconnect) {
-              client.stream.end();
               tryReconnect = false;
+              client.stream.end();
             } else {
               reconnectEvent.should.equal(true);
+              //extra close to cleanup the client
+              client.end();
               done();
             }
           });
@@ -993,10 +1097,12 @@
 
           client.on('connect', function () {
             if (tryReconnect) {
-              client.stream.end();
               tryReconnect = false;
+              client.stream.end();
             } else {
               offlineEvent.should.equal(true);
+              //extra close to cleanup the client
+              client.end();
               done();
             }
           });
@@ -1034,12 +1140,14 @@
 
           client.on('connect', function () {
             if (!reconnect) {
-              client.stream.end();
               reconnect = true;
+              client.stream.end();
             } else {
               client.end();
               end = Date.now();
               if (end - start >= period) {
+                //extra close to cleanup the client
+                client.end();
                 // Connected in about 2 seconds, that's good enough
                 done();
               } else {
@@ -1053,15 +1161,16 @@
           var client = connect({reconnectPeriod: 200});
             //reconnect = false;
 
-          server.once('client', function (client) {
-            client.on('connect', function () {
+          server.once('client', function (serverClient) {
+            serverClient.on('connect', function () {
               setImmediate(function () {
-                client.stream.destroy();
+                serverClient.stream.destroy();
               });
             });
 
-            server.once('client', function (client) {
-              client.on('publish', function () {
+            server.once('client', function (serverClient) {
+              serverClient.on('publish', function () {
+                serverClient.disconnect();
                 done();
               });
             });
@@ -1074,15 +1183,16 @@
           var client = connect({reconnectPeriod: 200});
             //, reconnect = false;
 
-          server.once('client', function (client) {
-            client.on('publish', function () {
+          server.once('client', function (serverClient) {
+            serverClient.on('publish', function () {
               setImmediate(function () {
-                client.stream.destroy();
+                serverClient.stream.destroy();
               });
             });
 
-            server.once('client', function (client) {
-              client.on('pubrel', function () {
+            server.once('client', function (serverClient) {
+              serverClient.on('pubrel', function () {
+                serverClient.disconnect();
                 done();
               });
             });
