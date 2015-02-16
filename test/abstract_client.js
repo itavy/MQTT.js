@@ -667,7 +667,7 @@
 
           server.once('client', function (serverClient) {
             serverClient.once('subscribe', function (packet) {
-              if (packet.subscriptions[0]){
+              if (packet.subscriptions[0]) {
                 packet.subscriptions[0].should.eql({
                   topic: tTopic,
                   qos:0
