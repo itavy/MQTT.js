@@ -1,0 +1,1 @@
+R	250214073722Z	150217073910Z	D523871572383C31	unknown	/C=RO/ST=BU/L=Bucharest/O=itavy/OU=itavy/emailAddress=itavyg@gmail.com/CN=client_revoked
