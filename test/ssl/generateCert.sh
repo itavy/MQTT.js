@@ -16,6 +16,9 @@ export KEY_ORG="itavy";
 export KEY_EMAIL="itavyg@gmail.com";
 export KEY_UNAME="itavy";
 
+cd "$WORKDIR";
+echo "1000" > crlnumber
+touch index.txt
 
 echo "###################################################";
 echo "#################GENERATE CA#######################";
@@ -28,6 +31,20 @@ echo "###################################################";
 echo "###################################################";
 export KEY_COMMONNAME="localhost_ca";
 $OPENSSLCMD req -new -x509 -days 3650 -keyout localhost_ca.key -out localhost_ca.crt $SSLCONFIG
+
+echo "###################################################";
+echo "###########GENERATE CA CRL REVOCATION##############";
+echo "##                                               ##";
+echo "## it will ask you for the password from         ##";
+echo "## previous step                                 ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+echo "1000" > crlnumber
+touch index.txt
+export KEY_COMMONNAME="localhost_ca";
+$OPENSSLCMD ca $SSLCONFIG $V3EXTFILE -keyfile localhost_ca.key -cert localhost_ca.crt -gencrl -out localhost_ca.crl
+
 
 echo "###################################################";
 echo "##############GENERATE SERVER KEY##################";
