@@ -9,6 +9,8 @@ fi
 OPENSSLCMD=`which openssl`
 SSLCONFIG="-config $WORKDIR/openssl.cnf";
 V3EXTFILE="-extfile $WORKDIR/v3.ext";
+touch index.txt
+echo 1000 > crlnumber
 export KEY_COUNTRY="RO"
 export KEY_PROVINCE="BU";
 export KEY_CITY="Bucharest";
@@ -28,6 +30,17 @@ echo "###################################################";
 echo "###################################################";
 export KEY_COMMONNAME="localhost_ca";
 $OPENSSLCMD req -new -x509 -days 3650 -keyout localhost_ca.key -out localhost_ca.crt $SSLCONFIG
+
+echo "###################################################";
+echo "###############GENERATE CA CRL#####################";
+echo "##                                               ##";
+echo "## it will ask you for a password,               ##";
+echo "## which you have provided on step 1             ##";
+echo "##                                               ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD ca -keyfile localhost_ca.key -cert localhost_ca.crt -gencrl -out localhost_ca.crl $SSLCONFIG
 
 echo "###################################################";
 echo "##############GENERATE SERVER KEY##################";
@@ -102,6 +115,64 @@ openssl x509 -req -in client.csr $V3EXTFILE -CA localhost_ca.crt -CAkey localhos
 
 
 echo "###################################################";
+echo "#########GENERATE CLIENT KEY FOR REVOKE############";
+echo "##                                               ##";
+echo "## remember the password because it will ask for ##";
+echo "## it when you make the request for signing      ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+export KEY_COMMONNAME="client_revoked";
+SUBJECTKEY="/C=$KEY_COUNTRY/ST=$KEY_PROVINCE/L=$KEY_CITY/O=$KEY_ORG/OU=$KEY_UNAME/emailAddress=$KEY_EMAIL/CN=$KEY_COMMONNAME"
+$OPENSSLCMD genrsa -out client_revoked.key 2048 $SSLCONFIG
+
+echo "###################################################";
+echo "###GENERATE REVOKED CLIENT REQUEST FOR SIGNING#####";
+echo "##                                               ##";
+echo "## when it asks for a chalenge password,         ##";
+echo "## press <enter> (no password):                  ##";
+echo "##                                               ##";
+echo "## Please enter the following 'extra' attributes ##";
+echo "## to be sent with your certificate request      ##";
+echo "## A challenge password []:                      ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD req -out client_revoked.csr -key client_revoked.key -new $SSLCONFIG -subj "$SUBJECTKEY"
+
+
+echo "###################################################";
+echo "########SIGN REVOKED CLIENT CERTIFICATE############";
+echo "##                                               ##";
+echo "## when it will ask for password, enter the one  ##";
+echo "## you entered in step 1 for CA                  ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD x509 -req -in client_revoked.csr $V3EXTFILE -CA localhost_ca.crt -CAkey localhost_ca.key -CAcreateserial -out client_revoked.crt -days 3650 
+
+
+echo "###################################################";
+echo "#############REVOKED CLIENT CERTIFICATE############";
+echo "##                                               ##";
+echo "## when it will ask for password, enter the one  ##";
+echo "## you entered in step 1 for CA                  ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD ca -keyfile localhost_ca.key -cert localhost_ca.crt -revoke client_revoked.crt $SSLCONFIG
+
+echo "###################################################";
+echo "###################UPDATE CA CRL###################";
+echo "##                                               ##";
+echo "## when it will ask for password, enter the one  ##";
+echo "## you entered in step 1 for CA                  ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD ca -keyfile localhost_ca.key -cert localhost_ca.crt -gencrl -out localhost_ca.crl $SSLCONFIG
+
+echo "###################################################";
 echo "#############GENERATE BAD CA#######################";
 echo "##                                               ##";
 echo "## it will ask you for a password, but you won't ##";
@@ -113,6 +184,43 @@ echo "###################################################";
 export KEY_COMMONNAME="localhost_bad_ca";
 $OPENSSLCMD req -new -x509 -days 3650 -keyout localhost_bad_ca.key -out localhost_bad_ca.crt $SSLCONFIG
 
+
+echo "###################################################";
+echo "############GENERATE BAD CLIENT KEY################";
+echo "##                                               ##";
+echo "## remember the password because it will ask for ##";
+echo "## it when you make the request for signing      ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+export KEY_COMMONNAME="client_bad";
+SUBJECTKEY="/C=$KEY_COUNTRY/ST=$KEY_PROVINCE/L=$KEY_CITY/O=$KEY_ORG/OU=$KEY_UNAME/emailAddress=$KEY_EMAIL/CN=$KEY_COMMONNAME"
+$OPENSSLCMD genrsa -out client_bad.key 2048 $SSLCONFIG
+
+echo "###################################################";
+echo "######GENERATE BAD CLIENT REQUEST FOR SIGNING######";
+echo "##                                               ##";
+echo "## when it asks for a chalenge password,         ##";
+echo "## press <enter> (no password):                  ##";
+echo "##                                               ##";
+echo "## Please enter the following 'extra' attributes ##";
+echo "## to be sent with your certificate request      ##";
+echo "## A challenge password []:                      ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+$OPENSSLCMD req -out client_bad.csr -key client_bad.key -new $SSLCONFIG -subj "$SUBJECTKEY"
+
+
+echo "###################################################";
+echo "###########SIGN BAD CLIENT CERTIFICATE#############";
+echo "##                                               ##";
+echo "## when it will ask for password, enter the one  ##";
+echo "## you entered in step 1 for CA                  ##";
+echo "##                                               ##";
+echo "###################################################";
+echo "###################################################";
+openssl x509 -req -in client_bad.csr $V3EXTFILE -CA localhost_bad_ca.crt -CAkey localhost_bad_ca.key -CAcreateserial -out client_bad.crt -days 3650 
 
 echo "###################################################";
 echo "#####################DONE##########################"
